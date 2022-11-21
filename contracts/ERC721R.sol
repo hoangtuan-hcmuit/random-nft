@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity 0.8.17;
 
 import "./interfaces/IERC721R.sol";
 
@@ -197,7 +197,7 @@ contract ERC721R is
     seed = uint256(keccak256(abi.encode(seed ^ block.timestamp, user)));
     seed <<= 96;
     seed >>= 96;
-    
+
     uint256 attributeId;
     uint64[] memory percentageMask = attributePercentageMask[uint8(rarity)];
     uint256 length = percentageMask.length;
