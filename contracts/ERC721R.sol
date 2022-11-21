@@ -195,6 +195,9 @@ contract ERC721R is
     else rarity = uint256(Rarity.BALL);
 
     seed = uint256(keccak256(abi.encode(seed ^ block.timestamp, user)));
+    seed <<= 96;
+    seed >>= 96;
+    
     uint256 attributeId;
     uint64[] memory percentageMask = attributePercentageMask[uint8(rarity)];
     uint256 length = percentageMask.length;
