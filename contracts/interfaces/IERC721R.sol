@@ -14,20 +14,24 @@ interface IERC721R {
     uint256 blockNumberStart;
     uint256 blockNumberEnd;
   }
-  event Commited(address indexed user, CommitInfo indexed commitment);
+  event Commited(address indexed user, uint256 indexed revealStart, uint256 indexed revealEnd, bytes32 commit);
   event Unboxed(address indexed user, uint256 indexed tokenId, uint256 indexed rarity, uint256 attributeId);
 
-  function pause() external;
+  // function pause() external;
 
-  function unpause() external;
+  // function unpause() external;
 
   function setRoot(bytes32 root_) external;
 
   function setSigner(address signer_) external;
 
+  function setBaseURI(string memory _newBaseURI) external;
+
+  function setBaseExtension(string memory _newBaseExtension) external;
+
   function commit(bytes32 commitment_) external;
 
-  function safeMint(address to_, uint256 tokenId_) external;
+  // function safeMint(address to_, uint256 tokenId_) external;
 
   function updateAttributePercentMask(uint256 rarity_, uint64[] memory percentageMask_) external;
 

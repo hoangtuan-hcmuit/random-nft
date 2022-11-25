@@ -2,44 +2,26 @@
 pragma solidity 0.8.17;
 
 import "./interfaces/IERC721R.sol";
-
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/cryptography/MerkleProofUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721BurnableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC721/presets/ERC721PresetMinterPauserAutoIdUpgradeable.sol";
 
 /// @custom:security-contact tuanmeo@gmail.com
-contract ERC721R is
-  IERC721R,
-  UUPSUpgradeable,
-  EIP712Upgradeable,
-  ERC721Upgradeable,
-  PausableUpgradeable,
-  AccessControlUpgradeable,
-  ERC721BurnableUpgradeable,
-  ERC721EnumerableUpgradeable
-{
+contract ERC721R is IERC721R, UUPSUpgradeable, EIP712Upgradeable, ERC721PresetMinterPauserAutoIdUpgradeable {
+  using StringsUpgradeable for *;
   using ECDSAUpgradeable for *;
   using MerkleProofUpgradeable for *;
 
   /// @dev value is equal to keccak256("ERC721R_v1")
   bytes32 public constant VERSION = 0x5e0552f6dd362c5662d2fa5933e126337ae8694639a8f14cda60fa3df2995615;
 
-  /// @dev value is equal to keccak256("PAUSER_ROLE")
-  bytes32 public constant PAUSER_ROLE = 0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a;
-  /// @dev value is equal to keccak256("MINTER_ROLE")
-  bytes32 public constant MINTER_ROLE = 0x9f2df0fed2c77648de5860a4cc508cd0818c85b8b8a1ab4ceeef8d981c8956a6;
   /// @dev value is equal to keccak256("UPGRADER_ROLE")
   bytes32 public constant UPGRADER_ROLE = 0x189ab7a9244df0848122154315af71fe140f3db0fe014031783b0946b8c9d2e3;
   /// @dev value is equal to keccak256("OPERATOR_ROLE")
   bytes32 public constant OPERATOR_ROLE = 0x97667070c54ef182b0f5858b034beac1b6f3089aa2d3188bb1e8929f4fa9b929;
 
-  uint256 private constant __RANDOM_BIT = 64;
+  uint256 private constant __RANDOM_BIT = 0xffffffffffffffff;
   uint256 private constant __CUP_MASK = 0xccccccccccccccc; // 5%
   uint256 private constant __MASCOT_MASK = 0x1999999999999999; // 5%
   uint256 private constant __QATAR_MASK = 0x4ccccccccccccccc; // 20%
@@ -52,28 +34,32 @@ contract ERC721R is
   address public signer;
   uint256 public globalNonces;
   uint256 public tokenIdTracker;
+  string public baseExtension;
 
   mapping(address => uint256) public signingNonces;
   mapping(address => CommitInfo) public commitments;
   mapping(uint8 => uint64[]) public attributePercentageMask;
+
+  string public baseTokenURI;
+  uint256 public cost;
 
   /// @custom:oz-upgrades-unsafe-allow constructor
   constructor() payable {
     _disableInitializers();
   }
 
-  function initialize() external initializer {
-    __Pausable_init_unchained();
-    __AccessControl_init_unchained();
-    __ERC721Burnable_init_unchained();
+  function init(
+    string calldata name_,
+    string calldata symbol_,
+    string calldata baseTokenURI_, //
+    string calldata baseExtension_ // json
+  ) external initializer {
     __UUPSUpgradeable_init_unchained();
-    __ERC721Enumerable_init_unchained();
-    __ERC721_init_unchained("ERC721R", "MTK");
     __EIP712_init_unchained(type(ERC721R).name, "1");
-
+    baseExtension = baseExtension_;
     address sender = _msgSender();
-    _grantRole(PAUSER_ROLE, sender);
-    _grantRole(MINTER_ROLE, sender);
+    __ERC721PresetMinterPauserAutoId_init(name_, symbol_, baseTokenURI_);
+
     _grantRole(UPGRADER_ROLE, sender);
     _grantRole(OPERATOR_ROLE, sender);
     _grantRole(DEFAULT_ADMIN_ROLE, sender);
@@ -90,10 +76,10 @@ contract ERC721R is
       commitInfo = CommitInfo({
         commit: commitment_,
         blockNumberStart: block.number + 1,
-        blockNumberEnd: block.number + 15
+        blockNumberEnd: block.number + 40
       });
     }
-    emit Commited(user, commitInfo);
+    emit Commited(user, commitInfo.blockNumberStart, commitInfo.blockNumberEnd, commitment_);
 
     commitments[user] = commitInfo;
   }
@@ -113,7 +99,6 @@ contract ERC721R is
     __mintRandom(commitInfo, user, userSeed_, houseSeed_);
   }
 
-  // ok chua thay
   function mintRandom(uint256 userSeed_, bytes32 houseSeed_, bytes32[] calldata proofs_) external {
     require(proofs_.verify(root, houseSeed_), "NFT: INVALID_HOUSE_SEED");
 
@@ -122,12 +107,27 @@ contract ERC721R is
     __mintRandom(commitInfo, user, userSeed_, houseSeed_);
   }
 
-  function metadataOf(uint256 tokenId_) external view returns (uint256 rarity_, uint256 attributeId_) {
+  function metadataOf(uint256 tokenId_) public view returns (uint256 rarity_, uint256 attributeId_) {
     require(ownerOf(tokenId_) != address(0), "NFT: NOT_EXISTED");
     unchecked {
       rarity_ = tokenId_ & ((1 << 3) - 1);
       attributeId_ = (tokenId_ >> 3) & ((1 << 3) - 1);
     }
+  }
+
+  function tokenURI(uint256 tokenId) public view override returns (string memory) {
+    require(_exists(tokenId), "ERC721Metadata: URI query for nonexistent token");
+
+    string memory currentBaseURI = baseTokenURI;
+    (uint256 rarity, uint256 attributeId) = metadataOf(tokenId);
+    return
+      bytes(currentBaseURI).length > 0
+        ? string(abi.encodePacked(currentBaseURI, "/", rarity.toString(), "/", attributeId.toString(), baseExtension))
+        : "";
+  }
+
+  function attributePercentMask(uint8 rarity_) external view returns (uint64[] memory) {
+    return attributePercentageMask[rarity_];
   }
 
   function updateAttributePercentMask(
@@ -141,22 +141,27 @@ contract ERC721R is
     root = root_;
   }
 
-  function pause() external onlyRole(PAUSER_ROLE) {
-    _pause();
+  function setCost(uint256 _newCost) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    cost = _newCost;
   }
 
-  function unpause() external onlyRole(PAUSER_ROLE) {
-    _unpause();
+  function setBaseURI(string memory _newBaseURI) external onlyRole(OPERATOR_ROLE) {
+    baseTokenURI = _newBaseURI;
   }
 
-  function safeMint(address to_, uint256 tokenId_) external onlyRole(MINTER_ROLE) {
-    _safeMint(to_, tokenId_);
+  function setBaseExtension(string memory _newBaseExtension) external onlyRole(OPERATOR_ROLE) {
+    baseExtension = _newBaseExtension;
   }
+
+  // function safeMint(address to_, uint256 tokenId_) external onlyRole(MINTER_ROLE) {
+  //   _safeMint(to_, tokenId_);
+  // }
 
   function __mintRandom(CommitInfo memory commitInfo, address user, uint256 userSeed_, bytes32 houseSeed_) private {
     uint256 revealBlock;
     unchecked {
-      revealBlock = (commitInfo.blockNumberEnd - commitInfo.blockNumberStart) >> 1;
+      revealBlock = commitInfo.blockNumberStart + ((commitInfo.blockNumberEnd - commitInfo.blockNumberStart) >> 2);
+      // revealBlock = commitInfo.blockNumberStart + 3;
     }
     assert(blockhash(revealBlock) != 0);
 
@@ -184,8 +189,8 @@ contract ERC721R is
       );
     }
 
-    seed <<= 96;
     seed >>= 96;
+    seed &= __RANDOM_BIT;
 
     uint256 rarity;
     if (seed < __CUP_MASK) rarity = uint256(Rarity.CUP);
@@ -195,8 +200,8 @@ contract ERC721R is
     else rarity = uint256(Rarity.BALL);
 
     seed = uint256(keccak256(abi.encode(seed ^ block.timestamp, user)));
-    seed <<= 96;
     seed >>= 96;
+    seed &= __RANDOM_BIT;
 
     uint256 attributeId;
     uint64[] memory percentageMask = attributePercentageMask[uint8(rarity)];
@@ -220,22 +225,13 @@ contract ERC721R is
     emit Unboxed(user, tokenId, rarity, attributeId);
   }
 
-  function _beforeTokenTransfer(
-    address from_,
-    address to_,
-    uint256 tokenId_,
-    uint256 batchSize_
-  ) internal override(ERC721Upgradeable, ERC721EnumerableUpgradeable) whenNotPaused {
-    super._beforeTokenTransfer(from_, to_, tokenId_, batchSize_);
+  function withdraw() external onlyRole(DEFAULT_ADMIN_ROLE) {
+    (bool ok, ) = signer.call{ value: address(this).balance }("");
+    require(ok, "NFT: TRANSFER_FAILED");
   }
 
   function _authorizeUpgrade(address newImplementation_) internal override onlyRole(UPGRADER_ROLE) {}
 
   // The following functions are overrides required by Solidity.
-
-  function supportsInterface(
-    bytes4 interfaceId_
-  ) public view override(ERC721Upgradeable, ERC721EnumerableUpgradeable, AccessControlUpgradeable) returns (bool) {
-    return super.supportsInterface(interfaceId_);
-  }
+  uint256[40] private __gap;
 }

@@ -1,23 +1,32 @@
-import { ethers } from "hardhat";
+import { Contract, ContractFactory } from "ethers";
+import { ethers, upgrades } from "hardhat";
 
 async function main() {
-  const currentTimestampInSeconds = Math.round(Date.now() / 1000);
-  const ONE_YEAR_IN_SECS = 365 * 24 * 60 * 60;
-  const unlockTime = currentTimestampInSeconds + ONE_YEAR_IN_SECS;
+  //const [deployer] = await ethers.getSigner
+  //s();
+  const ERC721R: ContractFactory = await ethers.getContractFactory("ERC721R");
+  const nftRandom: Contract = await upgrades.deployProxy(
+    ERC721R,
+    ["WC22 Pieces", "PIECES", "ipfs://bafybeih7yufwy72kb3dxxmkecc7hffbl6irbktqvhb2l5uefvxf4e4td6e", ".json"],
+    { kind: "uups", initializer: "init" },
+  );
+  await nftRandom.deployed();
 
-  const lockedAmount = ethers.utils.parseEther("1");
+  console.log("ERC721R Proxy Contract deployed to: ", nftRandom.address);
+  console.log(
+    "ERC721R Implementation deployed to: ",
+    await upgrades.erc1967.getImplementationAddress(nftRandom.address),
+  );
 
-  const Lock = await ethers.getContractFactory("Lock");
-  const lock = await Lock.deploy(unlockTime, { value: lockedAmount });
-
-  await lock.deployed();
-
-  console.log(`Lock with 1 ETH and unlock timestamp ${unlockTime} deployed to ${lock.address}`);
+  // const CommitUtil: ContractFactory = await ethers.getContractFactory("CommitUtil");
+  // const commitUtil: Contract = await CommitUtil.deploy();
+  // await commitUtil.deployed();
+  // console.log("CommitUtil deployed to ", commitUtil.address);
 }
 
-// We recommend this pattern to be able to use async/await everywhere
-// and properly handle errors.
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+main()
+  .then(() => process.exit(0))
+  .catch(error => {
+    console.error(error);
+    process.exit(1);
+  });

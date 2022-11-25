@@ -35,6 +35,7 @@
     "yarn-upgrade-all": "^0.7.1"
   },
   "scripts": {
+    "deploy:bsc": "hardhat run --network bsc scripts/deploy.ts",
     "deploy:bscTest": "hardhat run --network bscTest scripts/deploy.ts",
     "deploy:goerli": "hardhat run --network goerli scripts/deploy.ts",
     "deploy:tomoTest": "hardhat run --network tomoTest scripts/deploy.ts",

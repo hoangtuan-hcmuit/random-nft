@@ -23,7 +23,7 @@ const config: HardhatUserConfig = {
       },
       optimizer: {
         enabled: true,
-        runs: 1_000_000,
+        runs: 800,
       },
       //evmVersion: "london"
     },
@@ -42,11 +42,11 @@ const config: HardhatUserConfig = {
       chainId: 43113,
       accounts: process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
     },
-    // bsc: {
-    //   url: "https://bsc-dataseed1.binance.org/",
-    //   chainId: 56,
-    //   accounts: process.env.MAINTAINER_KEY !== undefined ? [process.env.MAINTAINER_KEY] : [],
-    // },
+    bsc: {
+      url: "https://bsc-dataseed1.binance.org/",
+      chainId: 56,
+      accounts: process.env.MAINTAINER_KEY !== undefined ? [process.env.MAINTAINER_KEY] : [],
+    },
     bscTest: {
       url: "https://bsctestapi.terminet.io/rpc",
       chainId: 97,
